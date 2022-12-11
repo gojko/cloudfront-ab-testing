@@ -8,11 +8,27 @@
 - no third-party code (reduces gdpr problems and privacy concerns)
 - no visible performance impact on loading/transfer
 
+## Configuring A/B test in CloudFormation
+
+- set ABTestExperimentName to a unique experiment name (so multiple tests can run in parallel without mixing results)
+- optionally set ABTestURL, this is the web page under test (control). default index2.html
+- optionally set ABTestVariantUrl, this is the variant of the test page. default = index2.html
+- optionally set ABTestGoalUrl, this is the web page signaling success for the test (users that reach this page should be counted as funnel success). default = success.html
+
 ## How this works
 
-- a viewer request function on "/index.html" assigns a test cohort, and redirects between index.html and index2.html based on the cohort. it also adds an internal header to the request with the cohort assignment, so it could be returned back to the user as a cookie. it also logs cohort assignment to cloudwatch so we can get it out later.
-- a viewer response function on "/index.html" checks for the internal header, and marks the user with a cookie (we use CSV to support multiple ongoing A/B tests)
-- a different viewer response function on "/success.html" checks for the presence of a session cookie with cohort assignment, and logs the fact that the user reached a goal, also logging the cohort, so we can use that for stats later. it then marks the user with a different tag in the session cookie, to ensure that we don't double-count the results.
+- a viewer request function on ABTestURL ("/index.html") assigns a test cohort, and redirects between ABTestURL (index.html) and ABTestVariantUrl (index2.html) based on the cohort. it checks for existing assignments to make sure users see content consistently, and logs cohort assignment to cloudwatch so we can get it out later. This is a viewer request function so it can't send back cookies (can't modify response). so we need another function to do that. This one will set an internal header to the request with the cohort assignment, so it could be used by that other function. 
+- a viewer response function on ABTestURL ("/index.html") checks for the internal header, and if present marks the user with a cookie (we use CSV to support multiple ongoing A/B tests)
+- a different viewer response function on ABTestGoalUrl ("/success.html") checks for the presence of a session cookie with cohort assignment, and logs the fact that the user reached a goal, also logging the cohort, so we can use that for stats later. It then marks the user with a different tag in the session cookie, to ensure that we don't double-count the results.
+
+a user gets assigned to a variant:
+
+![](assigned-to-variant.png)
+
+a user gets marked with as reached the goal, so we don't double-count them:
+
+![](marked-with-goal.png)
+
 
 ## Check results in CloudWatch insights
 
