@@ -123,6 +123,7 @@ Resources:
           }
           var request = event.request;
           var response = event.response;
+          var requestId = event.context.requestId;
           var cookieValue = (request.cookies[tagCookieName] && request.cookies[tagCookieName].value) || '';
           var tags = cookieValue.split(',').filter(t => t);
           if (verboseLog) {
