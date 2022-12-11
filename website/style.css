@@ -1,0 +1,40 @@
+html {
+ font-family: -apple-system, BlinkMacSystemFont, "Avenir Next", Avenir,
+    "Nimbus Sans L", Roboto, Noto, "Segoe UI", Arial, Helvetica,
+    "Helvetica Neue", sans-serif;
+}
+body {
+  color: #212121;
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  flex: 1;
+  margin: 0 auto;
+  max-width: 45rem;
+  padding: 0 0.5rem;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.row {
+  flex-direction: row;
+  display: flex;
+  width: 100%;
+  justify-content: space-evenly;
+}
+a.button {
+  text-decoration: none;
+  border: none;
+  border-radius: 5px;
+  background: #0d47a1;
+  font-size: 1rem;
+  color: #fff;
+  padding: 0.7rem 0.9rem;
+  margin: 0.5rem 0;
+  transition: 0.4s;
+}
+
+
+a.button:hover {
+  filter: brightness(1.4);
+  cursor: pointer;
+}

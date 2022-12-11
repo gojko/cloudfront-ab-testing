@@ -1,0 +1,292 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Example A/B Test Web CDN stack
+Parameters:
+  TagCookieName:
+    Description: The name of a cookie that will be used
+    Type: String
+    Default: tag
+  TagCookieAgeInDays:
+    Description: the duration of a tag cookie for cohort allocation
+    Type: Number
+    Default: 20
+  ABTestExperimentName:
+    Description: >
+      The name of an A/B test to deploy.
+      Provide a short alphanumerical string to enable A/B testing, or leave blank to disable A/B testing.
+      This value will be used as a prefix for the cohort allocation, so multiple tests can run in parallel.
+      If you enable A/B testing, make sure to check/override ABTestUrl, ABTestVariantUrl, ABTestGoalUrl)
+    Type: String
+    Default: ""
+  ABTestUrl:
+    Type: String
+    Default: "/index.html"
+    Description: >
+      The web page relative URL (path in the CloudFront origin) that will be used for A/B testing.
+      Start with "/", for example "/index.html".
+      The control cohort will see the page matching the URL from the origin.
+      The variant cohort will see an alternative page when requesting this URL (see ABTestVariantUrl).
+  ABTestVariantUrl:
+    Type: String
+    Default: "/index2.html"
+    Description: >
+      The path in the CloudFront origin that will be shown to the variant cohort when requesting the ABTestUrl.
+      Start with "/", for example "/index2.html".
+  ABTestGoalUrl:
+    Type: String
+    Default: "/success.html"
+    Description: >
+      The path in the CloudFront origin that will be used to log successful conversions.
+      (visiting this page signals that a user has fulfilled the goal of the A/B test, so page views on
+      this URL will be used to measure the difference in effectiveness between cohort and variant. This
+      could be the end of the conversion funnel, the payment success page, or some other signal that
+      a user has achieved the required goal).
+  VerboseLog:
+    Description: provide "true" to turn on debug logging from functions, useful for troubleshooting, or "false" to turn it off.
+    Type: String
+    Default: false
+Conditions:
+  ShouldRunABTest: !Not [ !Equals ['', !Ref ABTestExperimentName]]
+Resources:
+
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: 404.html
+
+  AssignTestCohortFunction:
+    Condition: ShouldRunABTest
+    Type: AWS::CloudFront::Function
+    Properties:
+      AutoPublish: true
+      FunctionConfig:
+        Comment: 'Assign AB test cohort'
+        Runtime: cloudfront-js-1.0
+      Name: !Sub "${AWS::StackName}-assign-test-cohort"
+      FunctionCode: !Sub |
+        var tagCookieName = '${TagCookieName}';
+        var verboseLog = ${VerboseLog};
+        function handler(event) {
+          if (verboseLog) {
+            console.log('EVENT\n' + JSON.stringify(event));
+          }
+          var request = event.request;
+          var cookieValue = (request.cookies[tagCookieName] && request.cookies[tagCookieName].value) || '';
+          var tags = cookieValue.split(',').filter(t => t);
+          if (verboseLog) {
+            console.log('Existing tags: ' + JSON.stringify(tags));
+          }
+          var requestId = event.context.requestId;
+          if (tags.includes('${ABTestExperimentName}-c')) {
+            if (verboseLog) {
+              console.log('already assigned to control');
+            }
+            return request;
+          } else if (tags.includes('${ABTestExperimentName}-v')) {
+            if (verboseLog) {
+              console.log('already assigned to variant');
+            }
+            request.uri = '${ABTestVariantUrl}';
+            return request;
+          }
+          var cohort = ((Math.random() < 0.5) ? 'v' : 'c');
+          var headerName = 'x-cohort-${ABTestExperimentName}-assignment'.toLowerCase(); // CF complains if not
+          request.headers[headerName] = {value: cohort};
+          console.log(JSON.stringify({experiment: '${ABTestExperimentName}', requestId, assignment: cohort}));
+          if (cohort == 'v') {
+              request.uri = '${ABTestVariantUrl}';
+          }
+          if (verboseLog) {
+            console.log('REQUEST\n' + JSON.stringify(request));
+          }
+          return request;
+        }
+
+  LogGoalFunction:
+    Condition: ShouldRunABTest
+    Type: AWS::CloudFront::Function
+    Properties:
+      AutoPublish: true
+      FunctionConfig:
+        Comment: 'Log A/B goals'
+        Runtime: cloudfront-js-1.0
+      Name: !Sub "${AWS::StackName}-log-goal"
+      FunctionCode: !Sub |
+        var tagCookieName = '${TagCookieName}';
+        var verboseLog = ${VerboseLog};
+        function handler(event) {
+          if (verboseLog) {
+            console.log('EVENT\n' + JSON.stringify(event));
+          }
+          var request = event.request;
+          var response = event.response;
+          var cookieValue = (request.cookies[tagCookieName] && request.cookies[tagCookieName].value) || '';
+          var tags = cookieValue.split(',').filter(t => t);
+          if (verboseLog) {
+            console.log('Existing tags:' + JSON.stringify(tags));
+          }
+          if (!tags.includes('${ABTestExperimentName}-g')) {
+            if (verboseLog) {
+              console.log('already captured in results');
+            }
+            return event.response; // already captured this user
+          } else if (tags.includes('${ABTestExperimentName}-c')) {
+            console.log(JSON.stringify({experiment: '${ABTestExperimentName}', goal: 'c', requestId ));
+          } else if (tags.includes('${ABTestExperimentName}-v') {
+            console.log(JSON.stringify({experiment: '${ABTestExperimentName}', goal: 'v', requestId }));
+          }
+          // mark user so we do not capture them again
+          response.cookies[tagCookieName] = {
+            'value': tags.concat(['${ABTestExperimentName}-g']).join(','),
+            'attributes': 'Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=' + (cookieAgeDays * 60 * 60 * 24)
+          };
+          if (verboseLog) {
+            console.log('RESPONSE\n' + JSON.stringify(response));
+          }
+          return response;
+        }
+
+  AssignCohortCookieFunction:
+    Condition: ShouldRunABTest
+    Type: AWS::CloudFront::Function
+    Properties:
+      AutoPublish: true
+      FunctionConfig:
+        Comment: 'Assign cohort cookie'
+        Runtime: cloudfront-js-1.0
+      Name: !Sub "${AWS::StackName}-assign-cohort-cookie"
+      FunctionCode: !Sub |
+        var verboseLog = ${VerboseLog};
+        var tagCookieName = '${TagCookieName}', cookieAgeDays = ${TagCookieAgeInDays};
+        function handler(event) {
+          if (verboseLog) {
+            console.log('EVENT\n' + JSON.stringify(event));
+          }
+          var request = event.request;
+          var response = event.response;
+          var requestId = event.context.requestId;
+          var headerName = 'x-cohort-${ABTestExperimentName}-assignment'.toLowerCase();
+          var actualHeader = Object.keys(request.headers).find(h => h.toLowerCase() === headerName); // CF capitalizes header names
+          var assignment = (actualHeader && request.headers[actualHeader].value) || '';
+          if (verboseLog) {
+            console.log('processing assignment: ' + assignment);
+          }
+          if (assignment) {
+            var tag = '${ABTestExperimentName}-' + assignment;
+            var cookieValue = (request.cookies[tagCookieName] && request.cookies[tagCookieName].value) || '';
+            var tags = cookieValue.split(',').filter(t => t);
+            if (verboseLog) {
+              console.log('Existing tags: ' + JSON.stringify(tags));
+            }
+            if (!tags.includes(tag)) {
+              if (verboseLog) {
+                console.log('adding tag ' + tag + ' to ' + requestId);
+              }
+              response.cookies[tagCookieName] = {
+                'value': tags.concat([tag]).join(','),
+                'attributes': 'Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=' + (cookieAgeDays * 60 * 60 * 24)
+              };
+            } else if (verboseLog) {
+              console.log('already assigned to ' + tag);
+            }
+          }
+          if (verboseLog) {
+            console.log('RESPONSE\n' + JSON.stringify(response));
+          }
+          return response;
+        }
+
+  WebCFDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        Origins:
+          - Id: StaticFilesOrigin
+            DomainName: !Select [2, !Split ["/", !GetAtt WebsiteBucket.WebsiteURL]]
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 30
+              OriginKeepaliveTimeout: 5
+            ConnectionAttempts: 3
+            ConnectionTimeout: 10
+        CacheBehaviors:
+          - !If
+            - ShouldRunABTest
+            - PathPattern: !Ref ABTestUrl
+              TargetOriginId: StaticFilesOrigin
+              AllowedMethods:
+                - GET
+                - HEAD
+              CachedMethods:
+                - GET
+                - HEAD
+              Compress: true
+              MinTTL: 0
+              DefaultTTL: 86400
+              MaxTTL: 31536000
+              FunctionAssociations:
+                - EventType: viewer-response
+                  FunctionARN: !GetAtt AssignCohortCookieFunction.FunctionMetadata.FunctionARN
+                - EventType: viewer-request
+                  FunctionARN: !GetAtt AssignTestCohortFunction.FunctionMetadata.FunctionARN
+              ForwardedValues:
+                QueryString: false
+                Cookies:
+                  Forward: none
+              ViewerProtocolPolicy: redirect-to-https
+            - !Ref AWS::NoValue
+          - !If
+            - ShouldRunABTest
+            - PathPattern: !Ref ABTestGoalUrl
+              TargetOriginId: StaticFilesOrigin
+              AllowedMethods:
+                - GET
+                - HEAD
+              CachedMethods:
+                - GET
+                - HEAD
+              Compress: true
+              MinTTL: 0
+              DefaultTTL: 86400
+              MaxTTL: 31536000
+              FunctionAssociations:
+                - EventType: viewer-request
+                  FunctionARN: !GetAtt LogGoalFunction.FunctionMetadata.FunctionARN
+              ForwardedValues:
+                QueryString: false
+                Cookies:
+                  Forward: none
+              ViewerProtocolPolicy: redirect-to-https
+            - !Ref AWS::NoValue
+        DefaultCacheBehavior:
+          TargetOriginId: StaticFilesOrigin
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          SmoothStreaming: false
+          Compress: true
+          MinTTL: 86400
+          DefaultTTL: 86400
+          MaxTTL: 31536000
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          ViewerProtocolPolicy: redirect-to-https
+
+Outputs:
+  CFDistribution:
+    Value: !Ref WebCFDistribution
+  CFDomainName:
+    Value: !GetAtt WebCFDistribution.DomainName
+  WebsiteBucket:
+    Value: !Ref WebsiteBucket
