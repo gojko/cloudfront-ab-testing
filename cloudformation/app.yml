@@ -264,7 +264,7 @@ Resources:
               DefaultTTL: 86400
               MaxTTL: 31536000
               FunctionAssociations:
-                - EventType: viewer-request
+                - EventType: viewer-response
                   FunctionARN: !GetAtt LogGoalFunction.FunctionMetadata.FunctionARN
               ForwardedValues:
                 QueryString: false
