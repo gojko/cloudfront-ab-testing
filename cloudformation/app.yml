@@ -94,7 +94,7 @@ Resources:
           var cohort = ((Math.random() < 0.5) ? 'v' : 'c');
           var headerName = 'x-cohort-${ABTestExperimentName}-assignment'.toLowerCase(); // CF complains if not
           request.headers[headerName] = {value: cohort};
-          console.log(JSON.stringify({experiment: '${ABTestExperimentName}', requestId, assignment: cohort}));
+          console.log(JSON.stringify({experiment: '${ABTestExperimentName}', cohort, action: "assignment", requestId}));
           if (cohort == 'v') {
               request.uri = '${ABTestVariantUrl}';
           }
@@ -135,9 +135,9 @@ Resources:
             }
             return response; // already captured this user
           } else if (tags.includes('${ABTestExperimentName}-c')) {
-            console.log(JSON.stringify({experiment: '${ABTestExperimentName}', goal: 'c', requestId }));
+            console.log(JSON.stringify({experiment: '${ABTestExperimentName}', cohort: 'c', action: "goal", requestId}));
           } else if (tags.includes('${ABTestExperimentName}-v')) {
-            console.log(JSON.stringify({experiment: '${ABTestExperimentName}', goal: 'v', requestId }));
+            console.log(JSON.stringify({experiment: '${ABTestExperimentName}', cohort: 'v', action: "goal", requestId}));
           } else {
             if (verboseLog) {
               console.log('not assigned to cohort');
