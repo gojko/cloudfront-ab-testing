@@ -115,6 +115,7 @@ Resources:
       Name: !Sub "${AWS::StackName}-log-goal"
       FunctionCode: !Sub |
         var tagCookieName = '${TagCookieName}';
+        var cookieAgeDays = ${TagCookieAgeInDays};
         var verboseLog = ${VerboseLog};
         function handler(event) {
           if (verboseLog) {
@@ -127,15 +128,20 @@ Resources:
           if (verboseLog) {
             console.log('Existing tags:' + JSON.stringify(tags));
           }
-          if (!tags.includes('${ABTestExperimentName}-g')) {
+          if (tags.includes('${ABTestExperimentName}-g')) {
             if (verboseLog) {
               console.log('already captured in results');
             }
-            return event.response; // already captured this user
+            return response; // already captured this user
           } else if (tags.includes('${ABTestExperimentName}-c')) {
-            console.log(JSON.stringify({experiment: '${ABTestExperimentName}', goal: 'c', requestId ));
-          } else if (tags.includes('${ABTestExperimentName}-v') {
+            console.log(JSON.stringify({experiment: '${ABTestExperimentName}', goal: 'c', requestId }));
+          } else if (tags.includes('${ABTestExperimentName}-v')) {
             console.log(JSON.stringify({experiment: '${ABTestExperimentName}', goal: 'v', requestId }));
+          } else {
+            if (verboseLog) {
+              console.log('not assigned to cohort');
+              return response;
+            }
           }
           // mark user so we do not capture them again
           response.cookies[tagCookieName] = {
@@ -159,7 +165,8 @@ Resources:
       Name: !Sub "${AWS::StackName}-assign-cohort-cookie"
       FunctionCode: !Sub |
         var verboseLog = ${VerboseLog};
-        var tagCookieName = '${TagCookieName}', cookieAgeDays = ${TagCookieAgeInDays};
+        var tagCookieName = '${TagCookieName}';
+        var cookieAgeDays = ${TagCookieAgeInDays};
         function handler(event) {
           if (verboseLog) {
             console.log('EVENT\n' + JSON.stringify(event));
