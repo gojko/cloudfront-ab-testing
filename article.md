@@ -8,13 +8,6 @@
 - no third-party code (reduces gdpr problems and privacy concerns)
 - no visible performance impact on loading/transfer
 
-## Configuring A/B test in CloudFormation
-
-- set ABTestExperimentName to a unique experiment name (so multiple tests can run in parallel without mixing results)
-- optionally set ABTestURL, this is the web page under test (control). default index2.html
-- optionally set ABTestVariantUrl, this is the variant of the test page. default = index2.html
-- optionally set ABTestGoalUrl, this is the web page signaling success for the test (users that reach this page should be counted as funnel success). default = success.html
-
 ## How this works
 
 - a viewer request function on ABTestURL ("/index.html") assigns a test cohort, and redirects between ABTestURL (index.html) and ABTestVariantUrl (index2.html) based on the cohort. it checks for existing assignments to make sure users see content consistently, and logs cohort assignment to cloudwatch so we can get it out later. This is a viewer request function so it can't send back cookies (can't modify response). so we need another function to do that. This one will set an internal header to the request with the cohort assignment, so it could be used by that other function. 
@@ -44,6 +37,15 @@ parse @message '{"experiment":"*","cohort":"*","action":"*"' as experiment, coho
 (note - the usual syntax with just referring to fields doesn't work as CF Functions always insert some garbage at the start of the log @message, so CW does not recognise it's JSON.
 
 ![](cw-results.png)
+
+## Configuring A/B test in CloudFormation
+
+see [cloudformation/app.yml](cloudformation/app.yml)
+
+- set ABTestExperimentName to a unique experiment name (so multiple tests can run in parallel without mixing results)
+- optionally set ABTestURL, this is the web page under test (control). default = index.html
+- optionally set ABTestVariantUrl, this is the variant of the test page. default = index2.html
+- optionally set ABTestGoalUrl, this is the web page signaling success for the test (users that reach this page should be counted as funnel success). default = success.html
 
 ## Deploy
 
