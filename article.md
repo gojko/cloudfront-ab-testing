@@ -10,7 +10,7 @@ A dirty little secret of modern software product management is that nobody reall
 
 ![Usage growth at Narakeet during 2022, with the key time point after we changed messaging on the homepage as a result of the A/B test](task-graph.png)
 
-_Usage growth at Narakeet during 2022, with the key time point after we changed messaging on the homepage as a result of the A/B test_
+> _Usage growth at Narakeet during 2022, with the key time point after we changed messaging on the homepage as a result of the A/B test_
 
 ## Running A/B tests with CloudFront
 
@@ -39,13 +39,13 @@ In order to be able to run several tests in parallel, we'll use a single cookie,
 
 ![A user gets assigned to a variant, with CloudFront adding a cookie to mark the user](assigned-to-variant.png)
 
-_A user gets assigned to a variant, with CloudFront adding a cookie to mark the user._
+> _A user gets assigned to a variant, with CloudFront adding a cookie to mark the user._
 
 We can use either a "viewer request" or a "viewer response" to track when a user reached the target page (purchase, registration and similar). In theory, there isn't much difference which one we choose, unless we want to also mark the user somehow. For optimizing the Narakeet homepage messaging, we were tracking if a user runs an audio or video conversion task after visiting the homepage, effectively checking if a user started getting benefits from our product. We wanted to avoid double-counting a user that makes many audio or video files. Once a user achieves the goal for the first time, we no longer want to count them as part of the test, but we still want to show them the same homepage variant as before. For that purpose, we'll mark users with an additional goal cookie. In order to be able to mark users with cookies, it's better to use a "viewer response" function to track goals. We can mark that a user achieved a goal and avoid double-counting by using a tag called `dec11reg-g`.
 
 ![A user gets marked with as reached the goal, so we don't double-count them](marked-with-goal.png)
 
-_A user gets marked with as reached the goal, so we don't double-count them._
+> _A user gets marked with as reached the goal, so we don't double-count them._
 
 ### Two technical challenges
 
@@ -72,7 +72,7 @@ CloudWatch will promptly show a table listing how many people were assigned to e
 
 ![CloudWatch insights show test results](cw-results.png)
 
-_CloudWatch insights show test results_
+> _CloudWatch insights show test results_
 
 For readers familiar with CloudWatch insights, who are now wondering why we are not using just the regular syntax to inspect JSON objects, note that CloudFront functions always insert some request data at the start of the log. Even if you are just logging JSON, because of that extra information CloudWatch can't directly break down the @message field into JSON components. For simple structured logs, the `parse @message` syntax does the trick, but the JSON fields will always need to be in the same order for this to work.
 
