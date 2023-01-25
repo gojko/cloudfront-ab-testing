@@ -1,30 +1,32 @@
 # Cheap and scalable A/B testing with CloudFront
 
-A single change in HTML improved our homepage conversion rates by 18%. Implementing the change was trivial. Finding what to change,  confirming it was the right thing, and that it had no negative side-effects, well that was a lot more difficult. Of course, the answer was to run an A/B test (actually a bunch of tests). A/B testing was the secret superpower of tech giants in early 2000s. After Googlers helped the Obama campaign tweak email messaging in the 2007 US presidential elections, the technique entered everyday jargon, and spun a whole new industry of expensive tools and services to help with online experiments. Tools that can help you run a high-risk test, scale to match a lot of traffic, and capture results with confidence, can easily cost five figures in dollars even to get started. Or you can do what we did, and run everything inside CloudFront and CloudWatch, almost for free. Here's how.
+A single change in HTML improved our homepage conversion rates by 18%, and almost doubled our recent growth. Implementing the change was trivial. Finding what to change was a lot more difficult, particularly confirming that it was the right thing, and that it had no negative side-effects. Of course, the answer was to run an A/B test (actually a bunch of tests). A/B testing was the secret superpower of tech giants in early 2000s. After Googlers helped the Obama campaign tweak email messaging in the 2007 US presidential elections, the technique entered everyday jargon, and spun a whole new industry of expensive tools and services to help with online experiments. Tools that can help you run a high-risk test at scale with confidence can easily cost five figures in dollars to even get started. Or you can do what we did, and run everything inside CloudFront and CloudWatch, almost for free. Here's how.
 
 ## Making high-risk changes at scale
 
-At [Narakeet](https://www.narakeet.com), we help people build video and audio files easily using realistic text to speech. During the past year, our web site traffic grew by roughly 100 times. Active usage increased from 150-200 conversion tasks per day to roughly 100.000 daily conversions, about 500-600x year-on-year growth. Luckily we built everything to auto-scale on AWS, so the technical side of growing was smooth. But with such a surge in usage, our user base expanded significantly, and the messaging we had on the homepage no longer suited the larger audience. Search engines kept sending us more and more people, but the old homepage didn't capture their interest. We could see a change in preferences, different types of workflows and content becoming popular, and wanted to tweak the homepage messaging to match the new needs. However, there was also a big risk of any change causing negative side-effects which we could not even predict. 
+At [Narakeet](https://www.narakeet.com), we help people build video and audio files easily using realistic text to speech. During the past year, our web site traffic grew by roughly 100 times. Active usage increased from 150-200 conversion tasks per day to roughly 100.000 daily conversions, about 500-600x year-on-year growth. Luckily we built everything to auto-scale on AWS, so the technical side of growing was smooth. As user base expanded, and the messaging on our homepage no longer suited the larger audience. Search engines kept sending us more and more people, but the old homepage didn't capture their interest. We could see a change in user preferences, with different types of workflows and content becoming popular. We wanted to tweak the homepage messaging to match the new needs. However, there was also a big risk of any change causing negative side-effects which we could not even predict. 
 
-What product management thinks users will do and what actually happens with real people doesn't necessarily always match. In fact, the seminal research paper [Online Experimentation at Microsoft](https://www.microsoft.com/en-us/research/publication/online-experimentation-at-microsoft/) suggests that "only about 1/3 of ideas improve the metrics they were designed to improve," and an almost equal number actually create a negative impact. At Google, choosing one [blue shade over another](https://www.theguardian.com/technology/2014/feb/05/why-google-engineers-designers) famously prevented a 200 million dollar mistake, with the final choice contradicting the request of design experts. After three years of work, we finally found a growth engine that produced results, and definitely did not want to throw a spanner in the works. But with the right messaging, we thought that it could perform even better. To make a decision like that, the most powerful tool in our arsenal today is an A/B test. 
+A dirty little secret of modern software product management is that nobody really knows what is going to happen with a proposed change. What product managers think their users will do, and what real people actually end up doing, don't necessarily always match. In fact, the seminal research paper [Online Experimentation at Microsoft](https://www.microsoft.com/en-us/research/publication/online-experimentation-at-microsoft/) suggests that "only about 1/3 of ideas improve the metrics they were designed to improve," and an equal number actually create a negative impact. At Google, choosing one [blue shade over another](https://www.theguardian.com/technology/2014/feb/05/why-google-engineers-designers) famously prevented a 200 million dollar mistake, with the final choice contradicting the request of design experts. After three years of work, Narakeet finally found a growth engine that produced results. With the right messaging, we thought that it could perform even better. But a bad decision about that could easily throw a spanner in the works. To make a decision like that, the most powerful tool in our arsenal today is an A/B test. 
 
 ![Usage growth at Narakeet during 2022, with the key time point after we changed messaging on the homepage as a result of the A/B test](task-graph.png)
 
+_Usage growth at Narakeet during 2022, with the key time point after we changed messaging on the homepage as a result of the A/B test_
+
 ## Running A/B tests with CloudFront
 
-At the most basic level, an A/B test is a way to prove (or disprove) a hypothesis with a fork in the road for users. Some users see one variant of a button, message or a whole page, and some users see another. After that, something tracks user activity, and collects information on whether the groups behaved significantly differently. An A/B test reduced business risk by temporarily increasing technical complexity, which means it can also introduce technical risks. There are a few important risks that need to be managed:
+At the most basic level, an A/B test is a way to prove (or disprove) a hypothesis with a fork in the road for users. Some users see one variant of a button, a message or a whole page, and some users see another. After that, the system tracks user activity and collects information on whether the groups behaved differently. An A/B test reduces business risk by temporarily increasing technical complexity, which means it can also introduce technical risks. There are a few important risks that need to be managed with such tests, especially related to Web pages:
 
-- dynamically changing content after the page loads can impact [Core Web Vitals](https://support.google.com/webmasters/answer/9205520?hl=en) (especially layout shifts), which in late 2022 became one of the critical factors for Google search ranking 
-- additional page content can impact page loading performance
-- collecting sensitive interactions or information may have an impact on privacy/data sharing (especially for GDPR)
-- tracking interactions and user goals can also impact system or page performance
-- third-party content (cookies and scripts) can get blocked by browsers and browser extensions
+- Dynamically changing content after a page loads can impact [Core Web Vitals](https://support.google.com/webmasters/answer/9205520?hl=en) (especially layout shifts), which in late 2022 became one of the critical factors for Google search ranking.
+- Additional page content can impact page loading performance, which can also impact search ranking and user behaviour in general.
+- Collecting sensitive interactions or information may have an impact on privacy/data sharing (especially for GDPR).
+- Tracking interactions and user goals can also impact system or page performance, and if it introduces a significant delay, it can change how users behave during the test.
+- Third-party content (cookies and scripts) can get blocked by browsers and browser extensions, making the test unreliable in case a large percentage of the audience blocks such content.
 
-With web tests in particular, A/B testing usually works by embedding a bit of JavaScript from a testing provider, unless you are a tech giant that can manage their own experimentation platform. This makes it easy to run tests, but it can get quite expensive at scale. It may also not be entirely accurate for people turn off JavaScript, or if ad blockers or content blockers start flagging additional scripts.
+With web tests in particular, A/B testing usually works by embedding a bit of JavaScript from a testing provider, unless you are a tech giant that can manage their own experimentation platform. This makes tests easy to run, but it can get quite expensive at scale. It may also not be entirely accurate for people turn off JavaScript, or if ad blockers or content blockers start flagging additional scripts.
 
-If your app is served using CloudFront, you can actually achieve everything just by tweaking routing. There is no need to pay for expensive third party services, add external scripts, and risk to user privacy. Even better, you can create a solution that doesn't depend on JavaScript at all. Provide two different static pages, and let users load one or another. Finally, if the test goal can be captured by a user visiting a web page (for example the registration or the purchase page), then CloudFront can also track the test performance, without any change to your application code.
+If your app is served using CloudFront, you can actually achieve everything just by tweaking routing. There is no need to pay for expensive third party services, add external scripts, and increase risk to user privacy. Even better, you can create a solution that doesn't depend on JavaScript at all. Provide two different static pages, and let users load one or another. Finally, if the test goal can be captured by a user visiting a web page (for example the registration or the purchase page), then CloudFront can also track the test performance, without any change to your application code. This means that there's no risk to changing user behaviour by introducing additional measurements in the app code.
 
-The key to unlock all these benefits are [CloudFront functions](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html). They are a way to do minor tweaks to requests and responses, including adding headers and cookies or changing request properties. There are two types of functions that are interesting for our case:
+The key to unlock all these benefits are [CloudFront functions](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html). They are a way to do minor tweaks to requests and responses at the edge of content delivery, including adding headers and cookies or changing request properties. There are two types of functions that are interesting for our case:
 
 - A "viewer request" function runs after CloudFront receives a request from a user, but before it tries to locate the content to serve back. 
 - A "viewer response" function runs after CloudFront retrieves the content to serve, but before it sends the content to the user. 
@@ -33,26 +35,31 @@ We can use a "viewer request" such a function to redirect some requests to an al
 
 We can use "viewer response" function to mark a user with a cookie, saving the test cohort assignment for later. This cookie will then be sent back to CloudFront for any subsequent requests, so we can track users later when they reach a goal. We can also use this cookie to reliably show the same person the same content variant. For example, if the routing function spots a cookie with the cohort assignment, it knows that the user is already participating in the test, and could show them the same homepage version as before.
 
-In order to be able to run several tests in parallel, we'll use a single cookie, but populate it with comma-separated tags based on the test name. For example, if the test is called `jan11payments`, then we will use `jan11payments-v` to signal that the user is assigned to a variant, or `jan11payments-c` to signal that the user is part of the control cohort. 
-![A user gets assigned to a variant](assigned-to-variant.png)
+In order to be able to run several tests in parallel, we'll use a single cookie, but populate it with comma-separated tags based on the test name. For example, if the test started on 11 December and it's about improving registrations, we could call it `dec11reg`. We will use `dec11reg-v` to signal that the user is assigned to a variant (they will see the changed page), or `dec11reg-c` to signal that the user is part of the control cohort (they see an unchanged page). 
 
-We can use either a "viewer request" or a "viewer response" to track when a user reached the target page (purchase, registration and similar). In theory, there isn't much difference which one we choose, unless we want to also mark the user somehow. For optimizing the Narakeet homepage messaging, we were tracking if a user runs an audio or video conversion task after visiting the homepage, effectively tracking if a user started getting benefits from our product. We wanted to avoid double-counting a user that makes many audio or video files. Once a user achieves the goal for the first time, we no longer want to count them as part of the test, but we still want to show them the same homepage variant as before. For that purpose, we'll mark users with an additional goal cookie. In this case, it's better to use a "viewer response" function to track goals. We can mark that a user achieved a goal and avoid double-counting by using a tag called `jan11payments-g`.
+![A user gets assigned to a variant, with CloudFront adding a cookie to mark the user](assigned-to-variant.png)
+
+_A user gets assigned to a variant, with CloudFront adding a cookie to mark the user._
+
+We can use either a "viewer request" or a "viewer response" to track when a user reached the target page (purchase, registration and similar). In theory, there isn't much difference which one we choose, unless we want to also mark the user somehow. For optimizing the Narakeet homepage messaging, we were tracking if a user runs an audio or video conversion task after visiting the homepage, effectively checking if a user started getting benefits from our product. We wanted to avoid double-counting a user that makes many audio or video files. Once a user achieves the goal for the first time, we no longer want to count them as part of the test, but we still want to show them the same homepage variant as before. For that purpose, we'll mark users with an additional goal cookie. In order to be able to mark users with cookies, it's better to use a "viewer response" function to track goals. We can mark that a user achieved a goal and avoid double-counting by using a tag called `dec11reg-g`.
 
 ![A user gets marked with as reached the goal, so we don't double-count them](marked-with-goal.png)
+
+_A user gets marked with as reached the goal, so we don't double-count them._
 
 ### Two technical challenges
 
 There are two key technical challenges to make this approach to testing work. 
 
-The first challenge is that a "viewer request" function needs to perform cohort assignment, but it can't modify response headers directly, so it cannot mark users with cookies to persist the cohort assignment. However, it can add a header to the request, and a "viewer response" function attached to the same user request will have access to that header. We can use custom header to transfer information about cohort assignment between CloudFront functions, and then let the "viewer response" function mark the user with a cookie.
+The first challenge is that a "viewer request" function needs to perform cohort assignment, so it can modify the routing before CloudFront loads a page. However, "viewer request" functions can't modify response headers directly, so they cannot mark users with cookies. However, they can add a header to the request, and a "viewer response" function attached to the same user request will have access to that header. We can use custom header to transfer information about cohort assignment between two CloudFront functions, and then let the "viewer response" function mark the user with a cookie.
 
-The second challenge is to get the cohort assignment and goal achievement out of CloudFront. For that, we can just use CloudWatch, as any logging to console from CloudFront functions automatically gets sent to CloudWatch logs. As long as we log something that is structured so it can be reliably filtered and analyzed, it will be easy to extract that information later using [CloudWatch Log Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html). For example, we will log a JSON object for each A/B test with three fields:
+The second challenge is to get the cohort assignment and goal achievement information out of CloudFront. For that, we can just use CloudWatch, as any logging to console from CloudFront functions automatically gets sent to CloudWatch logs. As long as we log something that is structured so it can be reliably filtered and analyzed, it will be easy to extract that information later using [CloudWatch Log Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html). For example, we will log a JSON object for each A/B test with three fields:
 
 - `experiment`: the name of the test
 - `cohort`: the name of the group where the user is assigned
 - `action`: assignment or achieving a goal
 
-This makes it easy to find matching log entries, and count them using a CW insight query. Select the logs for all the CloudFront functions created for the A/B test, and run the following query on them:
+This makes it easy to find matching log entries, and count them using a CloudWatch insight query. Select the logs for all the CloudFront functions created for the A/B test, and run the following query on them:
 
 ```
 parse @message '{"experiment":"*","cohort":"*","action":"*"' as experiment, cohort, action
@@ -65,7 +72,9 @@ CloudWatch will promptly show a table listing how many people were assigned to e
 
 ![CloudWatch insights show test results](cw-results.png)
 
-For readers familiar with CloudWatch insights, that are now wondering why we are not using just the regular syntax to inspect JSON objects, note that CloudFront functions always insert some garbage at the start of the log, even if you are just logging JSON, so CloudWatch can't directly break down the @message field into JSON components. For simple structured logs, the `parse @message` syntax does the trick, but the JSON fields will always need to be in the same order for this to work.
+_CloudWatch insights show test results_
+
+For readers familiar with CloudWatch insights, who are now wondering why we are not using just the regular syntax to inspect JSON objects, note that CloudFront functions always insert some request data at the start of the log. Even if you are just logging JSON, because of that extra information CloudWatch can't directly break down the @message field into JSON components. For simple structured logs, the `parse @message` syntax does the trick, but the JSON fields will always need to be in the same order for this to work.
 
 ### Code examples
 
@@ -118,18 +127,18 @@ Parameters:
       a user has achieved the required goal).
 ```
 
-Next, we'll define a condition to help us deploy the CDN distribution with or without a test. That way, we can deploy the additional infrastructure only when we're running the test. If the `ABTestExperimentName` name is not provided as a parameter during deployment, we can just skip the extra code.
+Next, we'll define a condition to help us deploy the CloudFront distribution with or without a test. That way, we can deploy the additional infrastructure only when we're running the test. If the `ABTestExperimentName` name is not provided as a parameter during deployment, we can just skip the extra code.
 
 ```
 Conditions:
   ShouldRunABTest: !Not [ !Equals ['', !Ref ABTestExperimentName]]
 ```
 
-We can use a "viewer request" function to detect if the user is already assigned to a test cohort, and if not assign them randomly to the control or variant cohort. Any new assignments are logged to CloudWatch, so we can inspect them later. We also need to pass the cohort assignment to the "viewer response" function in a header, so it can mark users with a cooke.
+First, let's create the "viewer request" function. It will need to detect if the user is already assigned to a test cohort, and if not assign them randomly to the control or variant group. Any new assignments need to be logged to CloudWatch, so we can inspect them later. We also need to pass the cohort assignment to the second "viewer response" function in a header, so it can mark users with a cookie.
 
 If the user is assigned to the variant cohort, the "viewer request" function needs to modify the `request.uri` property of the request, and set it to the alternative URL, so CloudFront can show the modified homepage.
 
-Note that we're directly bundling the JavaScript code into CloudFormation to avoid an additional packaging step, and using the CloudFormation `!Sub` function to inject stack parameters into JavaScript code ('${TagCookieName}' is not JavaScript string interpolation, but CloudFormation replacing parameter values in a string).
+Note that we're directly bundling the JavaScript code into CloudFormation to avoid an additional packaging step, and using the CloudFormation `!Sub` function to inject stack parameters into JavaScript code (`${TagCookieName}` is not JavaScript string interpolation, but CloudFormation replacing parameter values in a string).
 
 So you can track what happens easily, we're also adding a `verboseLog` option. Turn that on, and the function will dump debugging information to the logs. This is a very useful trick when developing functions, as it makes debugging easier. 
 
@@ -184,7 +193,7 @@ AssignTestCohortFunction:
 
 ```
 
-Importantly, this function includes everyone in the test. Depending on your traffic patterns and test needs, you may want to explicitly exclude bots, search engines and web scrapers from the test, as that can skew results. You can use [AWS WAF Bot control](https://aws.amazon.com/waf/features/bot-control/) to mark bots and then exclude them from the test results.
+It's important to note that this function includes everyone in the test. Depending on your traffic patterns and test needs, you may want to explicitly exclude bots, search engines and web scrapers from the test, as that can skew results. You can use [AWS WAF Bot control](https://aws.amazon.com/waf/features/bot-control/) to mark bots and then exclude them from the test results.
 
 To restrict test participants geographically, or to a specific device, you can use the additional [CloudFront request headers](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-cloudfront-headers.html). For example, CloudFront automatically adds the `CloudFront-Viewer-Country-Name` header which we could use to run a test visitors from a specific country, or `CloudFront-Is-Desktop-Viewer` and `CloudFront-Is-Mobile-Viewer` headers to run tests only on mobile or desktop viewers.
 
@@ -243,7 +252,7 @@ AssignCohortCookieFunction:
       }
 ```
 
-Finally, the third function tracks users when they reach a goal, logs the fact about that to CloudWatch. It also marks the user with a goal cookie tag to avoid double-counting.
+Finally, the third function tracks users when they reach a goal, and logs the fact about that to CloudWatch. It also marks the user with a goal cookie tag to avoid double-counting.
 
 ```
 LogGoalFunction:
@@ -410,3 +419,4 @@ Questions to check with AWS
 - is there some other header or CW synthetic request property that could be used to identify a client reliably (what's CloudFront-Viewer-JA3-Fingerprint )
 - do we need to collect logs from multiple regions or just one region?
 - does this need to be deployed in US-East-1 (Cloudfront?)
+- should we suggest more complex goal tracking using CW Evidently or something like that?
