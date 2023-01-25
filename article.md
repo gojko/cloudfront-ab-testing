@@ -37,6 +37,8 @@ We can use "viewer response" function to mark a user with a cookie, saving the t
 
 In order to be able to run several tests in parallel, we'll use a single cookie, but populate it with comma-separated tags based on the test name. For example, if the test started on 11 December and it's about improving registrations, we could call it `dec11reg`. We will use `dec11reg-v` to signal that the user is assigned to a variant (they will see the changed page), or `dec11reg-c` to signal that the user is part of the control cohort (they see an unchanged page). 
 
+Deploy a test app for this article from **TODO Github repository**, and you'll be able to see this in action.
+
 ![A user gets assigned to a variant, with CloudFront adding a cookie to mark the user](assigned-to-variant.png)
 
 > _A user gets assigned to a variant, with CloudFront adding a cookie to mark the user._
