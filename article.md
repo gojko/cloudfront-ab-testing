@@ -4,6 +4,8 @@ _This is a guest post from [AWS Serverless Hero Gojko Adzic](https://aws.amazon.
 
 At [Narakeet](https://www.narakeet.com), we help people build video and audio files easily using realistic text to speech. During the past year, our web site traffic grew by roughly 100 times. A single change in HTML improved our homepage conversion rates by 18%, and almost doubled our recent growth. Implementing the change was trivial. Finding what to change was a lot more difficult, particularly confirming that it was the right thing, and that it had no negative side-effects. Of course, the answer was to run an A/B test (actually a bunch of tests).
 
+At the most basic level, an A/B test is a way to prove (or disprove) a hypothesis with a fork in the road for users. Some users see one variant of a button, a message or a whole page, and some users see another. After that, the system tracks user activity and collects information on whether the groups behaved differently.
+
 A/B testing was the secret superpower of some tech companies in the early 2000s. After the Obama campaign use it to tweak email messaging in the 2007 US presidential elections, the technique entered everyday jargon, and spun a whole new industry of expensive tools and services to help with online experiments. Tools that can help you run a high-risk test at scale with confidence can easily cost five figures in dollars to even get started. Or you can do what we did, and run everything inside [Amazon CloudFront](https://aws.amazon.com/cloudfront/) and [Amazon CloudWatch](https://aws.amazon.com/cloudwatch/), almost for free. Here's how.
 
 ## Making high-risk changes at scale
@@ -17,8 +19,6 @@ A little secret of modern software product management is that nobody really know
 > _Usage growth at Narakeet during 2022, with the key time point after we changed messaging on the homepage as a result of the A/B test_
 
 ## Running A/B tests with Amazon CloudFront
-
-At the most basic level, an A/B test is a way to prove (or disprove) a hypothesis with a fork in the road for users. Some users see one variant of a button, a message or a whole page, and some users see another. After that, the system tracks user activity and collects information on whether the groups behaved differently.
 
 An A/B test reduces business risk by temporarily increasing technical complexity, which means it can also introduce technical risks. There are a few important risks that need to be managed with such tests, especially related to Web pages:
 
