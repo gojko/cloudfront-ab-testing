@@ -141,8 +141,8 @@ Resources:
           } else {
             if (verboseLog) {
               console.log('not assigned to cohort');
-              return response;
             }
+            return response;
           }
           // mark user so we do not capture them again
           response.cookies[tagCookieName] = {
